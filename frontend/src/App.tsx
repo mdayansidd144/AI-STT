@@ -473,7 +473,7 @@ function App() {
         <div className="max-w-6xl mx-auto px-6 py-8">
           <div className="mb-8 text-center">
             <h1 className="text-3xl font-bold mb-2 transition-all duration-300" style={{ color: theme.text }}>Welcome back, {user?.username}!</h1>
-            <p style={{ color: theme.textSecondary }}>AI-Powered Speech-to-Text • <Zap className="w-4 h-4 inline text-yellow-500" /> 1-2 second latency</p>
+            <p style={{ color: theme.textSecondary }}>AI-Powered Speech-to-Text • <Zap className="w-4 h-4 inline text-yellow-500" /> Real time Transcription</p>
           </div>
           
           <div className="grid grid-cols-[1fr,auto,1fr] gap-3 mb-6">

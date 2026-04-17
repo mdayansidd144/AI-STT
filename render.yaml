@@ -1,0 +1,33 @@
+services:
+  # Backend Service
+  - type: web
+    name: ai-stt-backend
+    runtime: image
+    repo: https://github.com/YOUR_USERNAME/YOUR_REPO_NAME
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    envVars:
+      - key: WHISPER_MODEL_SIZE
+        value: base
+      - key: COMPUTE_TYPE
+        value: int8
+      - key: DEVICE
+        value: cpu
+      - key: ENVIRONMENT
+        value: production
+
+  # Frontend Static Site
+  - type: web
+    name: ai-stt-frontend
+    runtime: static
+    repo: https://github.com/YOUR_USERNAME/YOUR_REPO_NAME
+    plan: free
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: ./frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://ai-stt-backend.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
