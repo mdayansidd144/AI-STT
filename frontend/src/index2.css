@@ -16,36 +16,6 @@ body {
   font-family: 'Calibri', 'Segoe UI', 'Roboto', sans-serif;
 }
 
-/* ✅ FIX: Select dropdown options visibility */
-select option {
-  background-color: #1e293b !important;
-  color: #ffffff !important;
-  padding: 8px 12px !important;
-}
-
-select optgroup {
-  background-color: #0f172a !important;
-  color: #94a3b8 !important;
-}
-
-select {
-  background-color: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-
-select:focus {
-  outline: none;
-}
-
-/* For WebKit browsers (Chrome, Edge, Safari) - ensures dropdown items are visible */
-select option:hover,
-select option:focus,
-select option:checked {
-  background-color: #3b82f6 !important;
-  color: white !important;
-}
-
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;

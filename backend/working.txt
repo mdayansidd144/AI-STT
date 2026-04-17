@@ -1,0 +1,128 @@
+🔧 BACKEND FILES (Member 1 & 2)
+main.py - FastAPI Application Entry Point
+Creates the web server using FastAPI framework
+
+Defines all API endpoints (/transcribe, /translate, /export-pdf, etc.)
+
+Handles CORS to allow frontend to communicate with backend
+
+Manages request routing and response formatting
+
+transcriber.py - Core Speech Recognition Engine
+Loads Whisper AI model (Facebook's speech-to-text model)
+
+Converts audio bytes to text using faster-whisper library
+
+Applies noise reduction and voice activity detection
+
+Returns transcribed text with confidence score and detected language
+
+translation_service.py - Multi-Language Translation
+Uses Google Translate API (free, no API key needed)
+
+Caches translations for instant repeated requests
+
+Supports 100+ languages including Hindi, Tamil, Arabic, Chinese
+
+Handles auto-detection of source language
+
+pdf_export.py - File Export Service
+Creates formatted text files with transcription and translation
+
+Uses UTF-8 encoding to preserve all language characters
+
+Falls back to text file if PDF font issues occur
+
+Adds timestamps and metadata to exported files
+
+config.py - Configuration Management
+Stores all settings (model size, languages, CORS origins)
+
+Manages environment variables from .env file
+
+Defines supported languages list (25+ Indian + 20+ International)
+
+requirements.txt - Python Dependencies
+Lists all Python packages needed for backend
+
+Includes fastapi (web framework), faster-whisper (speech-to-text)
+
+Includes torch (ML engine), aiohttp (async HTTP requests)
+
+🎨 FRONTEND FILES (Member 3 & 4)
+App.tsx - Main React Component
+Manages all application state (transcription, translation, theme)
+
+Handles audio recording using MediaRecorder API
+
+Contains language selectors, theme switcher, and layout controls
+
+Integrates all child components into a cohesive UI
+
+api.ts - API Communication Service
+Makes HTTP requests to backend using Axios
+
+Handles file uploads (audio blobs) to /transcribe endpoint
+
+Sends translation requests and receives translated text
+
+Manages PDF/text file download with blob responses
+
+index.css - Global Styling
+Defines Calibri font as primary font family
+
+Contains theme variables and color schemes
+
+Handles scrollbar styling and animations
+
+Ensures consistent look across all components
+
+main.tsx - React Entry Point
+Renders the App component into the DOM
+
+Sets up React Strict Mode for development
+
+vite.config.ts - Build Configuration
+Configures Vite development server on port 3001
+
+Sets up hot module replacement for fast development
+
+Handles proxy settings for API requests
+
+package.json - Node Dependencies
+Lists all frontend packages (React, Lucide icons, Axios)
+
+Defines scripts for development and production builds
+
+🗄️ DATABASE & STORAGE
+No Database Used - File-based Storage
+history stored in memory (Python list in transcriber.py)
+
+exports/ folder stores downloaded text files
+
+fonts/ folder contains optional Hindi font files
+
+No SQL database required - keeps system lightweight
+
+Why No Database?
+System works offline after initial setup
+
+Faster performance without database queries
+
+Easier deployment for students
+
+History is temporary (resets on server restart)
+
+🔌 API CONNECTIONS
+Backend API Endpoints
+Endpoint	Method	Purpose
+/transcribe	POST	Send audio, get text
+/translate	POST	Translate text to target language
+/export-pdf	POST	Download transcription as file
+/languages	GET	Get list of supported languages
+/history	GET	Get transcription history
+/health	GET	Check server status
+External APIs Used
+Google Translate API (free, no key needed) for translation
+
+No API key required for speech recognition (local Whisper model)
