@@ -2,49 +2,47 @@
 venv/
 env/
 ENV/
+.venv/
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
 *.so
 *.egg
 *.egg-info/
-dist/
 build/
+dist/
 
 # Node
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-package-lock.json
-
-# Backend
-backend/venv/
-backend/__pycache__/
-backend/exports/
-backend/data/
-backend/fonts/
-backend/*.db
-backend/*.sqlite
-backend/models/cache/
 
 # Frontend
 frontend/dist/
 frontend/.vite/
-frontend/node_modules/
+
+# Backend runtime
+backend/venv/
+backend/__pycache__/
+backend/exports/
+backend/*.db
+backend/*.sqlite
+backend/*.sqlite3
+backend/models/cache/
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
 
 # IDE
 .vscode/
 .idea/
 *.swp
-*.swo
-*~
-.DS_Store
+*.swo/
 
-# Environment
-.env
-.env.local
-.env.*.local
+# OS
+.DS_Store
 
 # Logs
 *.log

@@ -1,72 +1,151 @@
-from fastapi import FastAPI, File, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
-import time
 import os
+import time
+
+from fastapi import (
+    FastAPI,
+    File,
+    UploadFile,
+    Depends,
+)
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import (
+    JSONResponse,
+    FileResponse,
+)
+from sqlalchemy.orm import Session
 from loguru import logger
 
 from app.services.transcriber import TranscriberService
 from app.services.translation_service import TranslationService
 from app.services.pdf_export import PDFExportService
-from app.api import auth, transcription, translation, user, export, adaptive
 
-app = FastAPI()
+from app.api import (
+    auth,
+    user,
+    adaptive,
+)
 
-# ========== ✅ FIXED CORS FOR PRODUCTION ==========
-# Get allowed origins from environment variable (for Render)
-ALLOWED_ORIGINS = [
+from app.api.auth import get_current_user
+from app.core.database import (
+    get_db,
+    init_db,
+)
+
+from app.models.user import User
+from app.models.transcription import Transcription
+
+
+app = FastAPI(
+    title="AI Speech-to-Text API",
+    version="1.0.0"
+)
+
+
+# ============================================================
+# CORS
+# ============================================================
+
+allowed_origins = [
     "http://localhost:3000",
     "http://localhost:3001",
     "http://127.0.0.1:3000",
     "http://127.0.0.1:3001",
 ]
 
-# Add production frontend URL from environment variable
-FRONTEND_URL = os.environ.get("FRONTEND_URL", "")
-if FRONTEND_URL:
-    ALLOWED_ORIGINS.append(FRONTEND_URL)
-    ALLOWED_ORIGINS.append(FRONTEND_URL.replace("https://", "http://"))
+frontend_url = os.getenv(
+    "FRONTEND_URL",
+    ""
+).strip()
 
-# Also allow Render's default URLs
-RENDER_BACKEND_URL = os.environ.get("RENDER_EXTERNAL_URL", "")
-if RENDER_BACKEND_URL:
-    ALLOWED_ORIGINS.append(RENDER_BACKEND_URL)
+if frontend_url:
+    allowed_origins.append(
+        frontend_url.rstrip("/")
+    )
+
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ========== INITIALIZE SERVICES ==========
+
+# ============================================================
+# SERVICES
+# ============================================================
+
 transcriber = TranscriberService()
 translator = TranslationService()
 pdf_export = PDFExportService()
 
-# ========== INCLUDE ROUTERS ==========
-app.include_router(adaptive.router, prefix="/api/adaptive", tags=["adaptive"])
-# Add other routers if you have them
-# app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
-# app.include_router(transcription.router, prefix="/api/transcription", tags=["transcription"])
-# app.include_router(translation.router, prefix="/api/translation", tags=["translation"])
-# app.include_router(user.router, prefix="/api/user", tags=["user"])
-# app.include_router(export.router, prefix="/api/export", tags=["export"])
 
-# ========== HEALTH CHECK ==========
+# ============================================================
+# DATABASE
+# ============================================================
+
+@app.on_event("startup")
+async def startup_event():
+
+    logger.info("Initializing database")
+
+    init_db()
+
+    logger.info("Database initialized")
+
+
+# ============================================================
+# ROUTERS
+# ============================================================
+
+app.include_router(
+    auth.router,
+    prefix="/api/auth",
+    tags=["Authentication"]
+)
+
+app.include_router(
+    user.router,
+    prefix="/api/user",
+    tags=["User"]
+)
+
+app.include_router(
+    adaptive.router,
+    prefix="/api/adaptive",
+    tags=["Adaptive Learning"]
+)
+
+
+# ============================================================
+# HEALTH
+# ============================================================
+
 @app.get("/")
 @app.get("/health")
 async def health():
+
     return {
         "status": "healthy",
-        "environment": os.environ.get("ENVIRONMENT", "development"),
-        "model": os.environ.get("WHISPER_MODEL_SIZE", "base")
+        "environment": os.getenv(
+            "ENVIRONMENT",
+            "development"
+        ),
+        "model": os.getenv(
+            "WHISPER_MODEL_SIZE",
+            "tiny"
+        )
     }
 
-# ========== LANGUAGES ENDPOINT ==========
+
+# ============================================================
+# LANGUAGES
+# ============================================================
+
 @app.get("/languages")
 async def get_languages():
+
     return {
         "languages": {
             "auto": "🔍 Auto Detect",
@@ -97,63 +176,353 @@ async def get_languages():
         }
     }
 
-# ========== TRANSCRIPTION ENDPOINT ==========
+
+# ============================================================
+# TRANSCRIPTION
+# ============================================================
+
 @app.post("/transcribe")
-async def transcribe(file: UploadFile = File(...), language: str = "auto"):
-    start = time.time()
+async def transcribe(
+    file: UploadFile = File(...),
+    language: str = "auto",
+    current_user: User = Depends(
+        get_current_user
+    ),
+    db: Session = Depends(get_db)
+):
+
+    start = time.perf_counter()
+
     content = await file.read()
-    
+
     if len(content) < 500:
-        return JSONResponse({"success": False, "error": "Audio too short", "no_speech": True})
-    
-    result = await transcriber.transcribe(content, language)
-    result["total_time_ms"] = round((time.time() - start) * 1000)
+
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": "Audio too short",
+                "no_speech": True
+            }
+        )
+
+    # 10 MB safety limit
+    if len(content) > 10 * 1024 * 1024:
+
+        return JSONResponse(
+            status_code=413,
+            content={
+                "success": False,
+                "error":
+                    "Audio file is too large. "
+                    "Maximum size is 10 MB.",
+                "no_speech": True
+            }
+        )
+
+    result = await transcriber.transcribe(
+        content,
+        language
+    )
+
+    if not result.get("success"):
+        return JSONResponse(
+            status_code=500,
+            content=result
+        )
+
+    detected_language = result.get(
+        "language",
+        language if language != "auto" else "en"
+    )
+
+    text = result.get("text", "")
+
+    processing_ms = result.get(
+        "processing_ms",
+        round(
+            (time.perf_counter() - start)
+            * 1000
+        )
+    )
+
+    word_count = result.get(
+        "words",
+        len(text.split())
+    )
+
+    # Save history to database
+    if text:
+
+        transcription = Transcription(
+            user_id=current_user.id,
+            original_text=text,
+            translated_text=None,
+            source_language=language,
+            target_language=None,
+            detected_language=detected_language,
+            processing_time_ms=processing_ms,
+            audio_duration_seconds=0.0,
+            word_count=word_count,
+            efficiency_score=None,
+            file_name=file.filename,
+            file_size_bytes=len(content),
+            was_corrected=False,
+        )
+
+        db.add(transcription)
+
+        current_user.total_transcriptions = (
+            current_user.total_transcriptions or 0
+        ) + 1
+
+        current_user.total_words = (
+            current_user.total_words or 0
+        ) + word_count
+
+        db.commit()
+        db.refresh(transcription)
+
+        result["transcription_id"] = (
+            transcription.id
+        )
+
+    result["total_time_ms"] = round(
+        (time.perf_counter() - start)
+        * 1000
+    )
+
     return JSONResponse(result)
 
-# ========== TRANSLATION ENDPOINT ==========
+
+# ============================================================
+# TRANSLATION
+# ============================================================
+
 @app.post("/translate")
 async def translate(request: dict):
-    text = request.get("text", "")
-    target = request.get("target", "hi")
-    source = request.get("source", "auto")
-    
-    result = await translator.translate(text, source, target)
+
+    text = request.get(
+        "text",
+        ""
+    ).strip()
+
+    target = request.get(
+        "target",
+        "hi"
+    )
+
+    source = request.get(
+        "source",
+        "auto"
+    )
+
+    if not text:
+
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": "Text is required"
+            }
+        )
+
+    result = await translator.translate(
+        text,
+        source,
+        target
+    )
+
     return JSONResponse(result)
 
-# ========== PDF EXPORT ENDPOINT ==========
+
+# ============================================================
+# PDF EXPORT
+# ============================================================
+
 @app.post("/export-pdf")
 async def export_pdf(request: dict):
-    try:
-        original = request.get("original", "")
-        translated = request.get("translated", "")
-        source = request.get("source", "en")
-        target = request.get("target", "")
-        
-        if not original:
-            return JSONResponse({"success": False, "error": "No content to export"})
-        
-        pdf_path = await pdf_export.create_pdf(original, translated, source, target)
-        
-        return FileResponse(
-            pdf_path, 
-            media_type="application/pdf",
-            filename=f"transcript_{int(time.time())}.pdf"
-        )
-    except Exception as e:
-        logger.error(f"Export error: {e}")
-        return JSONResponse({"success": False, "error": str(e)})
 
-# ========== HISTORY ENDPOINTS ==========
+    try:
+
+        original = request.get(
+            "original",
+            ""
+        )
+
+        translated = request.get(
+            "translated",
+            ""
+        )
+
+        source = request.get(
+            "source",
+            "en"
+        )
+
+        target = request.get(
+            "target",
+            ""
+        )
+
+        if not original.strip():
+
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "error":
+                        "No content to export"
+                }
+            )
+
+        pdf_path = await pdf_export.create_pdf(
+            original=original,
+            translated=translated,
+            source=source,
+            target=target
+        )
+
+        if not pdf_path.endswith(".pdf"):
+
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "success": False,
+                    "error":
+                        "PDF generation failed"
+                }
+            )
+
+        return FileResponse(
+            pdf_path,
+            media_type="application/pdf",
+            filename=(
+                f"transcript_{int(time.time())}.pdf"
+            )
+        )
+
+    except Exception as error:
+
+        logger.exception(
+            f"PDF export failed: {error}"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error":
+                    "PDF generation failed"
+            }
+        )
+
+
+# ============================================================
+# HISTORY
+# ============================================================
+
 @app.get("/history")
-async def get_history():
-    return {"history": transcriber.get_history()}
+async def get_history(
+    skip: int = 0,
+    limit: int = 50,
+    current_user: User = Depends(
+        get_current_user
+    ),
+    db: Session = Depends(get_db)
+):
+
+    limit = min(max(limit, 1), 100)
+    skip = max(skip, 0)
+
+    records = (
+        db.query(Transcription)
+        .filter(
+            Transcription.user_id ==
+            current_user.id
+        )
+        .order_by(
+            Transcription.created_at.desc()
+        )
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+    history = []
+
+    for item in records:
+
+        history.append({
+            "id": item.id,
+            "text": item.original_text,
+            "translated_text":
+                item.translated_text,
+            "language":
+                item.detected_language,
+            "timestamp":
+                item.created_at.isoformat()
+                if item.created_at
+                else None,
+            "words":
+                item.word_count,
+            "processing_ms":
+                item.processing_time_ms,
+        })
+
+    return {
+        "history": history,
+        "count": len(history)
+    }
+
 
 @app.delete("/history")
-async def clear_history():
-    transcriber.clear_history()
-    return {"success": True}
+async def clear_history(
+    current_user: User = Depends(
+        get_current_user
+    ),
+    db: Session = Depends(get_db)
+):
 
-# ========== FOR LOCAL DEVELOPMENT ==========
+    deleted = (
+        db.query(Transcription)
+        .filter(
+            Transcription.user_id ==
+            current_user.id
+        )
+        .delete(
+            synchronize_session=False
+        )
+    )
+
+    current_user.total_transcriptions = 0
+    current_user.total_words = 0
+
+    db.commit()
+
+    return {
+        "success": True,
+        "deleted": deleted
+    }
+
+
+# ============================================================
+# LOCAL ENTRY POINT
+# ============================================================
+
 if __name__ == "__main__":
+
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+    port = int(
+        os.getenv(
+            "PORT",
+            "8000"
+        )
+    )
+
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=port
+    )

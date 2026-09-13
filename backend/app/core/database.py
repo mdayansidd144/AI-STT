@@ -141,7 +141,13 @@ def add_column_if_not_exists(table_name: str, column_name: str, column_type):
         
         if column_name not in columns:
             with engine.connect() as conn:
-                conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
+                from sqlalchemy import text
+                conn.execute(
+    text(
+        f"ALTER TABLE {table_name} "
+        f"ADD COLUMN {column_name} {column_type}"
+    )
+)
                 conn.commit()
                 logger.info(f"✅ Added column '{column_name}' to table '{table_name}'")
     except Exception as e:

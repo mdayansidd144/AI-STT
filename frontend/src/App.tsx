@@ -97,15 +97,33 @@ function App() {
     toast(msg);
   };
   
-  useEffect(() => {
-    fetchLanguages();
+ useEffect(() => {
+  const initializeApp = async () => {
+    await fetchLanguages();
+
     const token = localStorage.getItem('token');
+
     if (token) {
-      setIsLoggedIn(true);
-      setUser({ username: localStorage.getItem('username'), email: localStorage.getItem('email') });
-      fetchHistory();
+      try {
+        const userData = await api.getMe();
+
+        setIsLoggedIn(true);
+        setUser(userData);
+
+        await fetchHistory();
+      } catch (error) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('username');
+        localStorage.removeItem('email');
+
+        setIsLoggedIn(false);
+        setUser(null);
+      }
     }
-  }, []);
+  };
+
+  initializeApp();
+}, []);
   
   const fetchLanguages = async () => {
     try {
@@ -132,29 +150,107 @@ function App() {
     }
   };
   
-  const handleLogin = async () => {
-    if (!loginEmail || !loginPassword) { addNotification('Enter email and password'); return; }
+const handleLogin = async () => {
+  if (!loginEmail || !loginPassword) {
+    addNotification('Enter email and password');
+    return;
+  }
+
+  try {
+    const result = await api.login(
+      loginEmail,
+      loginPassword
+    );
+
+    if (!result.success) {
+      addNotification(result.message || 'Login failed');
+      return;
+    }
+
+    localStorage.setItem('token', result.access_token);
+    localStorage.setItem(
+      'username',
+      result.user.username
+    );
+    localStorage.setItem(
+      'email',
+      result.user.email
+    );
+
     setIsLoggedIn(true);
-    setUser({ username: loginEmail.split('@')[0], email: loginEmail });
-    localStorage.setItem('token', 'demo');
-    localStorage.setItem('username', loginEmail.split('@')[0]);
-    localStorage.setItem('email', loginEmail);
+    setUser(result.user);
     setShowAuth(null);
+
     addNotification('Welcome back!');
-    fetchHistory();
-  };
+
+    await fetchHistory();
+  } catch (error: any) {
+    console.error('Login error:', error);
+
+    const message =
+      error?.response?.data?.detail ||
+      'Login failed. Please check your credentials.';
+
+    addNotification(message);
+  }
+};
   
-  const handleSignup = async () => {
-    if (!signupEmail || !signupUsername || !signupPassword) { addNotification('Fill all fields'); return; }
+const handleSignup = async () => {
+  if (
+    !signupEmail ||
+    !signupUsername ||
+    !signupPassword
+  ) {
+    addNotification('Fill all fields');
+    return;
+  }
+
+  try {
+    const result = await api.signup(
+      signupEmail,
+      signupUsername,
+      signupPassword
+    );
+
+    if (!result.success) {
+      addNotification(
+        result.message || 'Account creation failed'
+      );
+      return;
+    }
+
+    localStorage.setItem(
+      'token',
+      result.access_token
+    );
+
+    localStorage.setItem(
+      'username',
+      result.user.username
+    );
+
+    localStorage.setItem(
+      'email',
+      result.user.email
+    );
+
     setIsLoggedIn(true);
-    setUser({ username: signupUsername, email: signupEmail });
-    localStorage.setItem('token', 'demo');
-    localStorage.setItem('username', signupUsername);
-    localStorage.setItem('email', signupEmail);
+    setUser(result.user);
     setShowAuth(null);
+
     addNotification('Account created!');
-  };
-  
+
+    await fetchHistory();
+  } catch (error: any) {
+    console.error('Signup error:', error);
+
+    const message =
+      error?.response?.data?.detail ||
+      'Account creation failed.';
+
+    addNotification(message);
+  }
+};
   const handleLogout = () => {
     setIsLoggedIn(false);
     setUser(null);

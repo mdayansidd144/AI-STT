@@ -2,32 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Calibri Font - Applied Globally */
+/* Global font */
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
 body {
-  font-family: 'Calibri', 'Segoe UI', 'Roboto', sans-serif;
   margin: 0;
   padding: 0;
+  font-family: 'Calibri', 'Segoe UI', 'Roboto', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Apply Calibri to all elements */
 * {
   font-family: 'Calibri', 'Segoe UI', 'Roboto', sans-serif;
 }
 
-/* ✅ FIX: Select dropdown options visibility */
-select option {
-  background-color: #1e293b !important;
-  color: #ffffff !important;
-  padding: 8px 12px !important;
-}
-
-select optgroup {
-  background-color: #0f172a !important;
-  color: #94a3b8 !important;
-}
-
+/* Select dropdown */
 select {
   background-color: transparent;
   color: inherit;
@@ -36,14 +30,17 @@ select {
 
 select:focus {
   outline: none;
+  box-shadow: 0 0 0 2px #6366f1;
 }
 
-/* For WebKit browsers (Chrome, Edge, Safari) - ensures dropdown items are visible */
-select option:hover,
-select option:focus,
-select option:checked {
-  background-color: #3b82f6 !important;
-  color: white !important;
+select option {
+  background-color: #1e293b;
+  color: #ffffff;
+}
+
+select optgroup {
+  background-color: #0f172a;
+  color: #94a3b8;
 }
 
 /* Custom scrollbar */
@@ -69,24 +66,19 @@ select option:checked {
 /* Line clamp utility */
 .line-clamp-2 {
   display: -webkit-box;
+  line-clamp: 2;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-/* Smooth transitions */
-* {
-  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 150ms;
-}
-
-/* Animation for modals */
+/* Modal animation */
 @keyframes slideIn {
   from {
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -97,15 +89,15 @@ select option:checked {
   animation: slideIn 0.3s ease-out;
 }
 
-/* Focus styles for better accessibility */
-button:focus, 
-input:focus, 
+/* Focus styles */
+button:focus,
+input:focus,
 select:focus {
   outline: none;
-  ring: 2px solid #6366f1;
+  box-shadow: 0 0 0 2px #6366f1;
 }
 
-/* Disabled button styles */
+/* Disabled buttons */
 button:disabled {
   cursor: not-allowed;
   opacity: 0.5;

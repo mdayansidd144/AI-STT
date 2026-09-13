@@ -1,6 +1,8 @@
 FROM python:3.11-slim
 
-# Install system dependencies (required for librosa, soundfile)
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     libsndfile1 \
@@ -10,18 +12,18 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy requirements first (for better caching)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
 COPY . .
 
-# Create necessary directories
-RUN mkdir -p exports fonts data
+RUN mkdir -p \
+    /app/exports \
+    /app/data \
+    /app/fonts
 
-# Expose port
-EXPOSE 8000
+EXPOSE 10000
 
-# Start command
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000}"]

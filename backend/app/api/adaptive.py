@@ -33,28 +33,47 @@ async def submit_correction(
     db: Session = Depends(get_db)
 ):
     """Submit a correction for adaptive learning"""
-    
-    # Save correction
+
+    if not correction.original.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Original text cannot be empty"
+        )
+
+    if not correction.corrected.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Corrected text cannot be empty"
+        )
+
     new_correction = Correction(
         user_id=current_user.id,
+        transcription_id=correction.transcription_id,
         original_text=correction.original,
         corrected_text=correction.corrected,
         language=correction.language,
-        created_at=datetime.now()
+        created_at=datetime.utcnow()
     )
     db.add(new_correction)
-    
-    # Update or create adaptive pattern
-    pattern_key = f"{correction.language}:{correction.original.lower()}"
-    existing_pattern = db.query(AdaptivePattern).filter(
-        AdaptivePattern.user_id == current_user.id,
-        AdaptivePattern.pattern_key == pattern_key
-    ).first()
-    
+
+    pattern_key = f"{correction.language}:{correction.original.strip().lower()}"
+    existing_pattern = (
+        db.query(AdaptivePattern)
+        .filter(
+            AdaptivePattern.user_id == current_user.id,
+            AdaptivePattern.pattern_key == pattern_key
+        )
+        .first()
+    )
+
     if existing_pattern:
         existing_pattern.frequency += 1
-        existing_pattern.confidence = min(1.0, existing_pattern.confidence + 0.05)
-        existing_pattern.last_used = datetime.now()
+        existing_pattern.confidence = min(
+            1.0,
+            existing_pattern.confidence + 0.05
+        )
+        existing_pattern.last_used = datetime.utcnow()
+        existing_pattern.corrected = correction.corrected
     else:
         new_pattern = AdaptivePattern(
             user_id=current_user.id,
@@ -64,25 +83,29 @@ async def submit_correction(
             language=correction.language,
             frequency=1,
             confidence=0.6,
-            created_at=datetime.now()
+            created_at=datetime.utcnow(),
+            last_used=datetime.utcnow()
         )
         db.add(new_pattern)
-    
-    # Update transcription if linked
+
     if correction.transcription_id:
-        transcription = db.query(Transcription).filter(
-            Transcription.id == correction.transcription_id
-        ).first()
+        transcription = (
+            db.query(Transcription)
+            .filter(
+                Transcription.id == correction.transcription_id,
+                Transcription.user_id == current_user.id
+            )
+            .first()
+        )
+
         if transcription:
             transcription.was_corrected = True
-            transcription.correction_applied = correction.corrected
-    
+
     db.commit()
-    
+
     return {
         "success": True,
         "message": "Correction saved. AI will learn from this.",
-        "patterns_learned": ["accent", "name_correction"]
     }
 
 
